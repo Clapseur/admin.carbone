@@ -10,10 +10,9 @@ const LoginForm = ({ onLogin }) => {
     setLoading(true);
     setError('');
 
-    // Simuler un délai de vérification
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    if (password === 'genesii') {
+    if (password === 'genesiigoat') {
       onLogin();
     } else {
       setError('Mot de passe incorrect');

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import CountUp from './CountUp';
 
 const Overview = () => {
   const [stats, setStats] = useState({
@@ -53,7 +54,6 @@ const Overview = () => {
       </div>
     );
   }
-
   const statCards = [
     {
       title: 'Codes Générés',
@@ -92,18 +92,16 @@ const Overview = () => {
       color: 'from-emerald-500 to-emerald-600'
     }
   ];
-
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-row">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Supervision</h1>
         <p className="text-gray-300">Vue d'ensemble du système Carbone</p>
       </div>
-
-      {/* 6 Cards in 2 rows of 3 columns - No scrolling */}
-      <div className="flex grid grid-rows-2 gap-6">
+      {/* Responsive grid: 3 cards per row, wraps on small screens */}
+      <div className="row flex-row gap-6">
         {statCards.map((card, index) => (
-          <div key={index} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl hover:bg-white/15 transition-all duration-300 flex flex-col justify-between">
+          <div key={index} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl hover:bg-white/15 transition-all duration-300 flex flex-row justify-between">
             <div className="flex items-center justify-between mb-4">
               <div className={`bg-gradient-to-r ${card.color} rounded-full p-3 text-white text-2xl shadow-lg`}>
                 {card.icon}
@@ -111,7 +109,18 @@ const Overview = () => {
             </div>
             <div>
               <p className="text-xs font-medium text-gray-300 mb-2 uppercase tracking-wide">{card.title}</p>
-              <p className="text-2xl font-bold text-white">{card.value}</p>
+              <p className="text-2xl font-bold text-white">
+                {typeof card.value === 'number' ? (
+                  <CountUp 
+                    from={0} 
+                    to={card.value} 
+                    separator="," 
+                    direction="up" 
+                    duration={1} 
+                    className="count-up-text" 
+                  />
+                ) : card.value}
+              </p>
             </div>
           </div>
         ))}
@@ -119,5 +128,4 @@ const Overview = () => {
     </div>
   );
 };
-
 export default Overview;

@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRef } from 'react';
+import qrBackground from '../assets/qr.png'; // Add this import
 
 const Generation = () => {
   const [quantity, setQuantity] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState(''); // 'success' or 'error'
+  const qrContainerRef = useRef(null);
 
   const generateCode = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -59,6 +62,55 @@ const Generation = () => {
         setMessage(`${num} codes générés avec succès !`);
         setMessageType('success');
         setQuantity('');
+        
+        // Generate QR codes for each new code with proper centering
+        setTimeout(() => {
+          codes.forEach(({ code }) => {
+            const qrContainer = document.createElement('div');
+            qrContainer.className = 'relative inline-block m-2';
+            qrContainer.style.width = '200px';
+            qrContainer.style.height = '200px';
+            
+            // Background image
+            const img = document.createElement('img');
+            img.src = require('../assets/qr.png');
+            img.className = 'w-full h-full object-cover';
+            img.style.position = 'absolute';
+            img.style.top = '0';
+            img.style.left = '0';
+            
+            // QR code container - centered
+            const qrDiv = document.createElement('div');
+            qrDiv.id = `qr-${code}`;
+            qrDiv.style.position = 'absolute';
+            qrDiv.style.top = '50%';
+            qrDiv.style.left = '50%';
+            qrDiv.style.transform = 'translate(-50%, -50%)';
+            qrDiv.style.zIndex = '10';
+            
+            // Download button
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = 'Télécharger';
+            downloadBtn.className = 'absolute bottom-2 left-2 bg-blue-600 text-white px-2 py-1 text-xs rounded hover:bg-blue-700';
+            downloadBtn.style.zIndex = '20';
+            downloadBtn.onclick = () => downloadQRCode(code, qrContainer);
+            
+            qrContainerRef.current.appendChild(qrContainer);
+            qrContainer.appendChild(img);
+            qrContainer.appendChild(qrDiv);
+            qrContainer.appendChild(downloadBtn);
+            
+            // Generate QR code
+            new window.QRCode(qrDiv, {
+              text: `https://bond.carbonedev.com/${code}`,
+              width: 100,
+              height: 100,
+              colorDark: '#000000',
+              colorLight: 'transparent',
+              correctLevel: window.QRCode.CorrectLevel.H
+            });
+          });
+        }, 100);
       }
     } catch (error) {
       setMessage('Erreur de connexion');
@@ -66,6 +118,34 @@ const Generation = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const downloadQRCode = (code, container) => {
+    // Create canvas to combine background and QR code
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 200;
+    canvas.height = 200;
+    
+    const img = new Image();
+    img.onload = () => {
+      // Draw background
+      ctx.drawImage(img, 0, 0, 200, 200);
+      
+      // Get QR code image
+      const qrImg = container.querySelector('img:last-child');
+      if (qrImg) {
+        // Draw QR code centered
+        ctx.drawImage(qrImg, 50, 50, 100, 100);
+      }
+      
+      // Download
+      const link = document.createElement('a');
+      link.download = `qr-code-${code}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    };
+    img.src = qrBackground; // Use the imported image instead of require
   };
 
   return (
@@ -122,6 +202,7 @@ const Generation = () => {
           <li>• Chaque code peut être utilisé une seule fois</li>
         </ul>
       </div>
+      <div ref={qrContainerRef} className="flex flex-wrap mt-8 gap-4"></div>
     </div>
   );
 };
