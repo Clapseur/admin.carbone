@@ -58,12 +58,8 @@ const LoginForm = ({ onLogin }) => {
             )}
 
             <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Connexion...' : 'Se connecter'}
+              <button className="admin-primary w-full py-2 px-4 rounded-md font-medium transition-colors">
+                Se connecter
               </button>
             </div>
           </form>

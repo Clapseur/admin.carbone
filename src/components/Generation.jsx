@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { useRef } from 'react';
-import qrBackground from '../assets/qr.png'; // Add this import
+import QRCode from 'react-qr-code';
+import qrBackground from '../assets/qr.png';
+import html2canvas from 'html2canvas';
 
 const Generation = () => {
   const [quantity, setQuantity] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState(''); // 'success' or 'error'
+  const [messageType, setMessageType] = useState('');
   const qrContainerRef = useRef(null);
 
   const generateCode = () => {
@@ -34,14 +35,12 @@ const Generation = () => {
       const codes = [];
       const existingCodes = new Set();
 
-      // Récupérer les codes existants
       const { data: existing } = await supabase
         .from('user_codes')
         .select('code');
       
       existing?.forEach(item => existingCodes.add(item.code));
 
-      // Générer des codes uniques
       while (codes.length < num) {
         const newCode = generateCode();
         if (!existingCodes.has(newCode)) {
@@ -50,7 +49,6 @@ const Generation = () => {
         }
       }
 
-      // Insérer les codes en batch
       const { error } = await supabase
         .from('user_codes')
         .insert(codes);
@@ -63,7 +61,12 @@ const Generation = () => {
         setMessageType('success');
         setQuantity('');
         
-        // Generate QR codes for each new code with proper centering
+        // Clear previous QR codes
+        if (qrContainerRef.current) {
+          qrContainerRef.current.innerHTML = '';
+        }
+        
+        // Generate QR codes display
         setTimeout(() => {
           codes.forEach(({ code }) => {
             const qrContainer = document.createElement('div');
@@ -71,44 +74,42 @@ const Generation = () => {
             qrContainer.style.width = '200px';
             qrContainer.style.height = '200px';
             
-            // Background image
-            const img = document.createElement('img');
-            img.src = require('../assets/qr.png');
-            img.className = 'w-full h-full object-cover';
-            img.style.position = 'absolute';
-            img.style.top = '0';
-            img.style.left = '0';
+            // Create React QR Code component container
+            const qrWrapper = document.createElement('div');
+            qrWrapper.className = 'absolute inset-0 flex items-center justify-center';
+            qrWrapper.style.background = `url(${qrBackground}) center/cover`;
             
-            // QR code container - centered
-            const qrDiv = document.createElement('div');
-            qrDiv.id = `qr-${code}`;
-            qrDiv.style.position = 'absolute';
-            qrDiv.style.top = '50%';
-            qrDiv.style.left = '50%';
-            qrDiv.style.transform = 'translate(-50%, -50%)';
-            qrDiv.style.zIndex = '10';
+            // Create QR code container
+            const qrCodeContainer = document.createElement('div');
+            qrCodeContainer.style.background = '';
+            qrCodeContainer.style.padding = '8px';
+            qrCodeContainer.style.borderRadius = '4px';
+            
+            // Render React QR Code (we'll need to use ReactDOM.render for this)
+            import('react-dom').then(({ createRoot }) => {
+              const root = createRoot(qrCodeContainer);
+              root.render(
+                React.createElement(QRCode, {
+                  value: `https://bond.carbonedev.com/${code}`,
+                  size: 100,
+                  bgColor: '#FFFFFF',
+                  fgColor: '#000000',
+                  level: 'H'
+                })
+              );
+            });
             
             // Download button
             const downloadBtn = document.createElement('button');
             downloadBtn.textContent = 'Télécharger';
             downloadBtn.className = 'absolute bottom-2 left-2 bg-blue-600 text-white px-2 py-1 text-xs rounded hover:bg-blue-700';
             downloadBtn.style.zIndex = '20';
-            downloadBtn.onclick = () => downloadQRCode(code, qrContainer);
+            downloadBtn.onclick = () => downloadQRCode(code);
             
-            qrContainerRef.current.appendChild(qrContainer);
-            qrContainer.appendChild(img);
-            qrContainer.appendChild(qrDiv);
+            qrWrapper.appendChild(qrCodeContainer);
+            qrContainer.appendChild(qrWrapper);
             qrContainer.appendChild(downloadBtn);
-            
-            // Generate QR code
-            new window.QRCode(qrDiv, {
-              text: `https://bond.carbonedev.com/${code}`,
-              width: 100,
-              height: 100,
-              colorDark: '#000000',
-              colorLight: 'transparent',
-              correctLevel: window.QRCode.CorrectLevel.H
-            });
+            qrContainerRef.current.appendChild(qrContainer);
           });
         }, 100);
       }
@@ -120,88 +121,121 @@ const Generation = () => {
     }
   };
 
-  const downloadQRCode = (code, container) => {
-    // Create canvas to combine background and QR code
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 200;
-    canvas.height = 200;
+  const downloadQRCode = async (code) => {
+    // Create a temporary container for the QR code
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = '800px';  // Increased size
+    tempContainer.style.height = '800px';
+    document.body.appendChild(tempContainer);
     
-    const img = new Image();
-    img.onload = () => {
-      // Draw background
-      ctx.drawImage(img, 0, 0, 200, 200);
+    try {
+      const { createRoot } = await import('react-dom/client');
+      const root = createRoot(tempContainer);
       
-      // Get QR code image
-      const qrImg = container.querySelector('img:last-child');
-      if (qrImg) {
-        // Draw QR code centered
-        ctx.drawImage(qrImg, 50, 50, 100, 100);
-      }
+      await new Promise((resolve) => {
+        root.render(
+          React.createElement('div', {
+            style: {
+              width: '800px',
+              height: '800px',
+              backgroundImage: `url(${qrBackground})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }
+          }, [
+            React.createElement('div', {
+              key: 'qr-wrapper',
+              style: {
+                background: 'white',
+                padding: '40px',
+                borderRadius: '24px',
+                boxShadow: '0 8px 12px rgba(0, 0, 0, 0.15)'
+              }
+            }, [
+              React.createElement(QRCode, {
+                key: 'qrcode',
+                value: `https://bond.carbonedev.com/${code}`,
+                size: 600,              // Increased size
+                bgColor: '#FFFFFF',
+                fgColor: '#000000',
+                level: 'H'
+              })
+            ])
+          ])
+        );
+        
+        setTimeout(resolve, 1500);
+      });
       
-      // Download
+      // Convert to canvas and download
+      const canvas = await html2canvas(tempContainer, {
+        width: 800,
+        height: 800,
+        scale: 3,                 // Higher resolution
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        imageTimeout: 15000
+      });
+      
       const link = document.createElement('a');
-      link.download = `qr-code-${code}.png`;
-      link.href = canvas.toDataURL();
+      link.download = `qr-code-${code}-full-size.png`;
+      link.href = canvas.toDataURL('image/png', 1.0);
       link.click();
-    };
-    img.src = qrBackground; // Use the imported image instead of require
+      
+    } catch (error) {
+      console.error('Error downloading QR code:', error);
+      alert('Erreur lors du téléchargement du QR code');
+    } finally {
+      document.body.removeChild(tempContainer);
+    }
   };
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Génération de Codes</h1>
-        <p className="text-gray-600">Créer de nouveaux codes d'accès pour les utilisateurs</p>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-md p-6 max-w-md">
-        <div className="mb-6">
-          <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-2">
-            Nombre de codes à générer
-          </label>
-          <input
-            type="number"
-            id="quantity"
-            min="1"
-            max="500"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Ex: 50"
-            disabled={loading}
-          />
-          <p className="text-xs text-gray-500 mt-1">Maximum: 500 codes</p>
-        </div>
-
-        {message && (
-          <div className={`mb-4 p-3 rounded-md ${
-            messageType === 'success' 
-              ? 'bg-green-50 border border-green-200 text-green-700'
-              : 'bg-red-50 border border-red-200 text-red-700'
-          }`}>
-            {message}
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-gray-900">Générer des Codes</h2>
+      
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-2">
+              Nombre de codes à générer (max 500)
+            </label>
+            <input
+              type="number"
+              id="quantity"
+              min="1"
+              max="500"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Entrez le nombre de codes"
+            />
           </div>
-        )}
-
-        <button
-          onClick={handleGenerate}
-          disabled={loading || !quantity}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-md transition-colors disabled:cursor-not-allowed"
-        >
-          {loading ? 'Génération en cours...' : 'Générer les codes'}
-        </button>
+          
+          <button
+            onClick={handleGenerate}
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Génération en cours...' : 'Générer les codes'}
+          </button>
+          
+          {message && (
+            <div className={`p-3 rounded-md ${
+              messageType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            }`}>
+              {message}
+            </div>
+          )}
+        </div>
       </div>
-
-      <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-blue-900 mb-2">ℹ️ Information</h3>
-        <ul className="text-sm text-blue-800 space-y-1">
-          <li>• Les codes générés sont uniques et font 5 caractères</li>
-          <li>• Format: lettres majuscules et chiffres (ex: A1B2C)</li>
-          <li>• Les codes sont immédiatement disponibles pour utilisation</li>
-          <li>• Chaque code peut être utilisé une seule fois</li>
-        </ul>
-      </div>
+      
       <div ref={qrContainerRef} className="flex flex-wrap mt-8 gap-4"></div>
     </div>
   );

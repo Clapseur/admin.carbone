@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import QRCode from 'react-qr-code';
 import qrBackground from '../assets/qr.png';
-import { createTransparentQRCode } from '../lib/qrcode';
+import html2canvas from 'html2canvas';
 
 const Management = () => {
   const [codes, setCodes] = useState([]);
@@ -48,44 +49,97 @@ const Management = () => {
   const currentCodes = filteredCodes.slice(startIndex, startIndex + itemsPerPage);
 
   const deleteCode = async (id) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce code ?')) {
+      return;
+    }
+    
     try {
       const { error } = await supabase
         .from('user_codes')
         .delete()
         .eq('id', id);
-
+  
       if (error) throw error;
+      
+      // Update local state
       setCodes(codes.filter(code => code.id !== id));
+      
+      // Show success message
+      alert('Code supprimé avec succès');
     } catch (error) {
       console.error('Error deleting code:', error);
+      alert('Erreur lors de la suppression du code');
     }
   };
 
-  const downloadQRCode = (code) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 400;
-    canvas.height = 400;
-
-    const img = new Image();
-    img.onload = () => {
-      // Draw background image
-      ctx.drawImage(img, 0, 0, 400, 400);
+  const downloadQRCode = async (code) => {
+    // Create a temporary container for the QR code with full background
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = '800px';  // Increased from 400px
+    tempContainer.style.height = '800px'; // Increased from 400px
+    tempContainer.style.backgroundImage = `url(${qrBackground})`;
+    tempContainer.style.backgroundSize = 'cover';
+    tempContainer.style.backgroundPosition = 'center';
+    tempContainer.style.display = 'flex';
+    tempContainer.style.alignItems = 'center';
+    tempContainer.style.justifyContent = 'center';
+    document.body.appendChild(tempContainer);
+    
+    try {
+      const { createRoot } = await import('react-dom/client');
+      const root = createRoot(tempContainer);
       
-      // Create and overlay QR code
-      const qrCanvas = createTransparentQRCode(`bond.carbonedev.com/${code.code}`, 200);
-      setTimeout(() => {
-        // Center the QR code on the background
-        ctx.drawImage(qrCanvas, 100, 100, 200, 200);
+      await new Promise((resolve) => {
+        root.render(
+          React.createElement('div', {
+            style: {
+              background: 'white',
+              padding: '40px',        // Increased padding
+              borderRadius: '24px',   // Increased border radius
+              boxShadow: '0 8px 12px rgba(0, 0, 0, 0.15)'
+            }
+          }, [
+            React.createElement(QRCode, {
+              key: 'qrcode',
+              value: `https://bond.carbonedev.com/${code.code}`,
+              size: 600,              // Increased from 280 to 600
+              bgColor: '#FFFFFF',
+              fgColor: '#000000',
+              level: 'H'
+            })
+          ])
+        );
         
-        // Download the combined image
-        const link = document.createElement('a');
-        link.download = `qr-${code.code}.png`;
-        link.href = canvas.toDataURL();
-        link.click();
-      }, 200);
-    };
-    img.src = qrBackground;
+        // Wait for render to complete
+        setTimeout(resolve, 1500);    // Increased timeout for larger render
+      });
+      
+      // Convert to canvas and download with full quality
+      const canvas = await html2canvas(tempContainer, {
+        width: 800,               // Increased from 400
+        height: 800,              // Increased from 400
+        scale: 3,                 // Increased from 2 to 3 for even higher resolution
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+        logging: false,           // Disable logging for cleaner output
+        imageTimeout: 15000       // Increased timeout for large images
+      });
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.download = `qr-code-${code.code}-full-size.png`;
+      link.href = canvas.toDataURL('image/png', 1.0); // Full quality
+      link.click();
+      
+    } catch (error) {
+      console.error('Error downloading QR code:', error);
+      alert('Erreur lors du téléchargement du QR code');
+    } finally {
+      document.body.removeChild(tempContainer);
+    }
   };
 
   if (loading) {
@@ -99,7 +153,7 @@ const Management = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold text-gray-900">Gérer les Codes</h2>
+        <h2 className="text-2xl font-bold text-white-900">Gérer les Codes</h2>
         
         <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
           <input
@@ -127,41 +181,22 @@ const Management = () => {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-4">
         {currentCodes.map((code) => (
           <div key={code.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-            {/* QR Code Image Container - Small size for 5 per row */}
             <div className="relative w-full h-40 bg-gray-100 overflow-hidden">
               <img
                 src={qrBackground}
                 alt="QR Background"
                 className="w-full h-full object-cover"
               />
-              {/* QR Code Overlay Container */}
-              <div 
-                className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                style={{
-                  background: 'transparent'
-                }}
-              >
-                <div 
-                  ref={(el) => {
-                    if (el && !el.hasChildNodes()) {
-                      createTransparentQRCode(
-                        el, 
-                        `bond.carbonedev.com/${code.code}`, 
-                        {
-                          width: 100,
-                          height: 100,
-                          colorDark: '#000000',
-                          colorLight: 'transparent'
-                        }
-                      );
-                    }
-                  }}
-                  style={{
-                    width: '100px',
-                    height: '100px',
-                    background: 'transparent'
-                  }}
-                />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div style={{ background: 'white', padding: '4px', borderRadius: '4px' }}>
+                  <QRCode
+                    value={`https://bond.carbonedev.com/${code.code}`}
+                    size={80}
+                    bgColor="#FFFFFF"
+                    fgColor="#000000"
+                    level="H"
+                  />
+                </div>
               </div>
             </div>
             
